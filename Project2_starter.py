@@ -1,31 +1,72 @@
+import json
 from datetime import datetime, timedelta
 
 def time_to_minutes(time_str):
-    # Convert a time string 'HH:MM' to minutes since midnight
     t = datetime.strptime(time_str, "%H:%M")
     return t.hour * 60 + t.minute
 
 def minutes_to_time(minutes):
-    # Convert minutes since midnight to a time string 'HH:MM'
     return (datetime.min + timedelta(minutes=minutes)).strftime("%H:%M")
 
-def get_free_times(busy_schedule, active_period, meeting_duration):
-    # Generate free intervals for a person based on their busy schedule and active period.
-    login, logout = time_to_minutes(active_period[0]), time_to_minutes(active_period[1])
-    busy_schedule = [[time_to_minutes(start), time_to_minutes(end)] for start, end in busy_schedule]
+def find_common_free_intervals(busy_schedules, active_periods, meeting_duration):
+    # Initialize the common free interval based on the first person's active period
+    start_common = max(time_to_minutes(active_period[0]) for active_period in active_periods)
+    end_common = min(time_to_minutes(active_period[1]) for active_period in active_periods)
 
-    # Initialize free intervals
-    free_times = []
-    start = login
+    if start_common >= end_common:
+        return []  # No common time available
+    
+    # Track all busy times directly
+    for i in range(len(busy_schedules)):
+        for busy_start, busy_end in busy_schedules[i]:
+            start_busy = time_to_minutes(busy_start)
+            end_busy = time_to_minutes(busy_end)
+            
+            # Adjust common interval by excluding busy times within it
+            if start_busy <= start_common < end_busy:
+                start_common = end_busy
+            if start_busy < end_common <= end_busy:
+                end_common = start_busy
 
-    # Go through busy intervals to create free times
-    for interval in busy_schedule:
-        if start + meeting_duration <= interval[0]:  # There is enough time before the busy interval
-            free_times.append([start, interval[0]])
-        start = max(start, interval[1])  # Update start to the end of the current busy interval
+            # If at any point there’s no valid time left
+            if start_common >= end_common:
+                return []  # No available common slot
 
-    # Check if there's time after the last busy period until logout
-    if start + meeting_duration <= logout:
-        free_times.append([start, logout])
+    # Check if the final common interval meets the meeting duration requirement
+    if end_common - start_common >= meeting_duration:
+        return [[minutes_to_time(start_common), minutes_to_time(end_common)]]
+    else:
+        return []  # No slot long enough for the meeting
 
-    return free_times
+def main():
+    try:
+        # Reading input from Input.txt
+        with open("Input.txt", "r") as file:
+            lines = file.readlines()
+        
+        busy_schedules = []
+        active_periods = []
+        meeting_duration = int(lines[-1].strip())  # Last line is the meeting duration
+
+        for i in range(0, len(lines) - 1, 2):
+            busy_schedule = json.loads(lines[i].strip().replace("‘", "\"").replace("’", "\""))
+            active_period = json.loads(lines[i + 1].strip().replace("‘", "\"").replace("’", "\""))
+            busy_schedules.append(busy_schedule)
+            active_periods.append(active_period)
+
+        available_slots = find_common_free_intervals(busy_schedules, active_periods, meeting_duration)
+        
+        # Writing output to Output.txt
+        with open("Output.txt", "w") as file:
+            file.write(str(available_slots) + "\n")
+        print("Available slots saved to Output.txt:", available_slots)
+
+    except FileNotFoundError:
+        print("Error: Input.txt file not found.")
+    except ValueError as e:
+        print("Error in processing file content:", e)
+    except Exception as e:
+        print("Unexpected error:", e)
+
+if __name__ == "__main__":
+    main()
