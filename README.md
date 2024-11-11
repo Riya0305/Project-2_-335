@@ -1,7 +1,7 @@
 # Project 2 - CPSC 335
 * Riya Jain: riyajain@csu.fullerton.edu
 * David Elliott: delliott23@csu.fullerton.edu
-* mem_3: ADD EMAIL
+* Steven Delgado: sdelgado662@csu.fullerton.edu
 
 # To run the code: 
 * 1. Create a text file with the list of scheduled unavailable times, the times people clock in and clock out and the duration of the meeting
