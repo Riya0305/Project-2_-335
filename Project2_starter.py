@@ -8,35 +8,60 @@ def time_to_minutes(time_str):
 def minutes_to_time(minutes):
     return (datetime.min + timedelta(minutes=minutes)).strftime("%H:%M")
 
-def find_common_free_intervals(busy_schedules, active_periods, meeting_duration):
-    # Initialize the common free interval based on the first person's active period
-    start_common = max(time_to_minutes(active_period[0]) for active_period in active_periods)
-    end_common = min(time_to_minutes(active_period[1]) for active_period in active_periods)
+def get_free_intervals(busy_schedule, active_period):
+    login, logout = time_to_minutes(active_period[0]), time_to_minutes(active_period[1])
+    busy_intervals = [[time_to_minutes(start), time_to_minutes(end)] for start, end in busy_schedule]
+    free_intervals = []
+    start = login
 
-    if start_common >= end_common:
-        return []  # No common time available
-    
-    # Track all busy times directly
+    # Sort busy intervals to process in order
+    busy_intervals.sort()
+
+    # Find gaps between busy intervals as free intervals
+    for busy_start, busy_end in busy_intervals:
+        if start < busy_start:
+            free_intervals.append([start, busy_start])
+        start = max(start, busy_end)
+
+    # If there's free time after the last busy period until logout
+    if start < logout:
+        free_intervals.append([start, logout])
+
+    return free_intervals
+
+def merge_intervals(intervals, meeting_duration):
+    # Sort intervals to prepare for merging
+    intervals.sort()
+    merged_intervals = []
+    current_start, current_end = intervals[0]
+
+    for start, end in intervals[1:]:
+        # If intervals overlap or touch, merge them
+        if start <= current_end:
+            current_end = max(current_end, end)
+        else:
+            # Save the merged interval if it meets the meeting duration
+            if current_end - current_start >= meeting_duration:
+                merged_intervals.append([current_start, current_end])
+            # Start a new interval
+            current_start, current_end = start, end
+
+    # Append the last interval if it meets the duration
+    if current_end - current_start >= meeting_duration:
+        merged_intervals.append([current_start, current_end])
+
+    # Convert intervals back to time format
+    return [[minutes_to_time(start), minutes_to_time(end)] for start, end in merged_intervals]
+
+def find_available_slots(busy_schedules, active_periods, meeting_duration):
+    all_free_intervals = []
     for i in range(len(busy_schedules)):
-        for busy_start, busy_end in busy_schedules[i]:
-            start_busy = time_to_minutes(busy_start)
-            end_busy = time_to_minutes(busy_end)
-            
-            # Adjust common interval by excluding busy times within it
-            if start_busy <= start_common < end_busy:
-                start_common = end_busy
-            if start_busy < end_common <= end_busy:
-                end_common = start_busy
-
-            # If at any point there’s no valid time left
-            if start_common >= end_common:
-                return []  # No available common slot
-
-    # Check if the final common interval meets the meeting duration requirement
-    if end_common - start_common >= meeting_duration:
-        return [[minutes_to_time(start_common), minutes_to_time(end_common)]]
-    else:
-        return []  # No slot long enough for the meeting
+        # Get free intervals for each person's schedule and active period
+        free_intervals = get_free_intervals(busy_schedules[i], active_periods[i])
+        all_free_intervals.extend(free_intervals)
+    
+    # Merge all intervals and filter by the meeting duration
+    return merge_intervals(all_free_intervals, meeting_duration)
 
 def main():
     try:
@@ -54,7 +79,7 @@ def main():
             busy_schedules.append(busy_schedule)
             active_periods.append(active_period)
 
-        available_slots = find_common_free_intervals(busy_schedules, active_periods, meeting_duration)
+        available_slots = find_available_slots(busy_schedules, active_periods, meeting_duration)
         
         # Writing output to Output.txt
         with open("Output.txt", "w") as file:
